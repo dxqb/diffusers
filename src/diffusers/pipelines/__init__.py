@@ -6,7 +6,6 @@ from ..utils import (
     _LazyModule,
     get_objects_from_module,
     is_flax_available,
-    is_k_diffusion_available,
     is_librosa_available,
     is_note_seq_available,
     is_onnx_available,
@@ -15,6 +14,7 @@ from ..utils import (
     is_torch_available,
     is_torch_npu_available,
     is_transformers_available,
+    is_transformers_version,
 )
 
 
@@ -128,8 +128,8 @@ else:
         "AnimateDiffVideoToVideoControlNetPipeline",
     ]
     _import_structure["bria"] = ["BriaPipeline"]
-    _import_structure["bria_fibo"] = ["BriaFiboPipeline"]
-    _import_structure["flux2"] = ["Flux2Pipeline"]
+    _import_structure["bria_fibo"] = ["BriaFiboPipeline", "BriaFiboEditPipeline"]
+    _import_structure["flux2"] = ["Flux2Pipeline", "Flux2KleinPipeline"]
     _import_structure["flux"] = [
         "FluxControlPipeline",
         "FluxControlInpaintPipeline",
@@ -154,7 +154,7 @@ else:
         "AudioLDM2UNet2DConditionModel",
     ]
     _import_structure["blip_diffusion"] = ["BlipDiffusionPipeline"]
-    _import_structure["chroma"] = ["ChromaPipeline", "ChromaImg2ImgPipeline"]
+    _import_structure["chroma"] = ["ChromaPipeline", "ChromaImg2ImgPipeline", "ChromaInpaintPipeline"]
     _import_structure["cogvideo"] = [
         "CogVideoXPipeline",
         "CogVideoXImageToVideoPipeline",
@@ -166,6 +166,7 @@ else:
     _import_structure["consisid"] = ["ConsisIDPipeline"]
     _import_structure["cosmos"] = [
         "Cosmos2_5_PredictBasePipeline",
+        "Cosmos2_5_TransferPipeline",
         "Cosmos2TextToImagePipeline",
         "CosmosTextToWorldPipeline",
         "CosmosVideoToWorldPipeline",
@@ -288,7 +289,9 @@ else:
         "LTXImageToVideoPipeline",
         "LTXConditionPipeline",
         "LTXLatentUpsamplePipeline",
+        "LTXI2VLongMultiPromptPipeline",
     ]
+    _import_structure["ltx2"] = ["LTX2Pipeline", "LTX2ImageToVideoPipeline", "LTX2LatentUpsamplePipeline"]
     _import_structure["lumina"] = ["LuminaPipeline", "LuminaText2ImgPipeline"]
     _import_structure["lumina2"] = ["Lumina2Pipeline", "Lumina2Text2ImgPipeline"]
     _import_structure["lucy"] = ["LucyEditPipeline"]
@@ -407,11 +410,12 @@ else:
         "Kandinsky5I2IPipeline",
     ]
     _import_structure["z_image"] = [
-        "ZImageImg2ImgPipeline",
-        "ZImagePipeline",
-        "ZImageControlNetPipeline",
         "ZImageControlNetInpaintPipeline",
+        "ZImageControlNetPipeline",
+        "ZImageImg2ImgPipeline",
+        "ZImageInpaintPipeline",
         "ZImageOmniPipeline",
+        "ZImagePipeline",
     ]
     _import_structure["skyreels_v2"] = [
         "SkyReelsV2DiffusionForcingPipeline",
@@ -432,6 +436,8 @@ else:
         "QwenImageLayeredPipeline",
     ]
     _import_structure["chronoedit"] = ["ChronoEditPipeline"]
+    _import_structure["glm_image"] = ["GlmImagePipeline"]
+
 try:
     if not is_onnx_available():
         raise OptionalDependencyNotAvailable()
@@ -458,21 +464,6 @@ else:
             "StableDiffusionOnnxPipeline",
         ]
     )
-
-try:
-    if not (is_torch_available() and is_transformers_available() and is_k_diffusion_available()):
-        raise OptionalDependencyNotAvailable()
-except OptionalDependencyNotAvailable:
-    from ..utils import (
-        dummy_torch_and_transformers_and_k_diffusion_objects,
-    )
-
-    _dummy_objects.update(get_objects_from_module(dummy_torch_and_transformers_and_k_diffusion_objects))
-else:
-    _import_structure["stable_diffusion_k_diffusion"] = [
-        "StableDiffusionKDiffusionPipeline",
-        "StableDiffusionXLKDiffusionPipeline",
-    ]
 
 try:
     if not (is_torch_available() and is_transformers_available() and is_sentencepiece_available()):
@@ -592,8 +583,8 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
         from .aura_flow import AuraFlowPipeline
         from .blip_diffusion import BlipDiffusionPipeline
         from .bria import BriaPipeline
-        from .bria_fibo import BriaFiboPipeline
-        from .chroma import ChromaImg2ImgPipeline, ChromaPipeline
+        from .bria_fibo import BriaFiboEditPipeline, BriaFiboPipeline
+        from .chroma import ChromaImg2ImgPipeline, ChromaInpaintPipeline, ChromaPipeline
         from .chronoedit import ChronoEditPipeline
         from .cogvideo import (
             CogVideoXFunControlPipeline,
@@ -625,6 +616,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
         )
         from .cosmos import (
             Cosmos2_5_PredictBasePipeline,
+            Cosmos2_5_TransferPipeline,
             Cosmos2TextToImagePipeline,
             Cosmos2VideoToWorldPipeline,
             CosmosTextToWorldPipeline,
@@ -673,7 +665,8 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             FluxPriorReduxPipeline,
             ReduxImageEncoder,
         )
-        from .flux2 import Flux2Pipeline
+        from .flux2 import Flux2KleinPipeline, Flux2Pipeline
+        from .glm_image import GlmImagePipeline
         from .hidream_image import HiDreamImagePipeline
         from .hunyuan_image import HunyuanImagePipeline, HunyuanImageRefinerPipeline
         from .hunyuan_video import (
@@ -729,7 +722,14 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             LEditsPPPipelineStableDiffusionXL,
         )
         from .longcat_image import LongCatImageEditPipeline, LongCatImagePipeline
-        from .ltx import LTXConditionPipeline, LTXImageToVideoPipeline, LTXLatentUpsamplePipeline, LTXPipeline
+        from .ltx import (
+            LTXConditionPipeline,
+            LTXI2VLongMultiPromptPipeline,
+            LTXImageToVideoPipeline,
+            LTXLatentUpsamplePipeline,
+            LTXPipeline,
+        )
+        from .ltx2 import LTX2ImageToVideoPipeline, LTX2LatentUpsamplePipeline, LTX2Pipeline
         from .lucy import LucyEditPipeline
         from .lumina import LuminaPipeline, LuminaText2ImgPipeline
         from .lumina2 import Lumina2Pipeline, Lumina2Text2ImgPipeline
@@ -857,6 +857,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             ZImageControlNetInpaintPipeline,
             ZImageControlNetPipeline,
             ZImageImg2ImgPipeline,
+            ZImageInpaintPipeline,
             ZImageOmniPipeline,
             ZImagePipeline,
         )
@@ -882,17 +883,6 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
                 OnnxStableDiffusionPipeline,
                 OnnxStableDiffusionUpscalePipeline,
                 StableDiffusionOnnxPipeline,
-            )
-
-        try:
-            if not (is_torch_available() and is_transformers_available() and is_k_diffusion_available()):
-                raise OptionalDependencyNotAvailable()
-        except OptionalDependencyNotAvailable:
-            from ..utils.dummy_torch_and_transformers_and_k_diffusion_objects import *
-        else:
-            from .stable_diffusion_k_diffusion import (
-                StableDiffusionKDiffusionPipeline,
-                StableDiffusionXLKDiffusionPipeline,
             )
 
         try:

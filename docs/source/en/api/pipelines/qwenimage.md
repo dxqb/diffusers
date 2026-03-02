@@ -29,7 +29,7 @@ Qwen-Image comes in the following variants:
 | Qwen-Image-Edit Plus | [Qwen/Qwen-Image-Edit-2509](https://huggingface.co/Qwen/Qwen-Image-Edit-2509) |
 
 > [!TIP]
-> [Caching](../../optimization/cache) may also speed up inference by storing and reusing intermediate outputs.
+> See the [Caching](../../optimization/cache) guide to speed up inference by storing and reusing intermediate outputs.
 
 ## LoRA for faster inference
 
@@ -95,7 +95,7 @@ image.save("qwen_fewsteps.png")
 
 With [`QwenImageEditPlusPipeline`], one can provide multiple images as input reference.
 
-```
+```py
 import torch
 from PIL import Image
 from diffusers import QwenImageEditPlusPipeline
@@ -187,6 +187,12 @@ For detailed benchmark scripts and results, see [this gist](https://gist.github.
 ## QwenImageEditPlusPipeline
 
 [[autodoc]] QwenImageEditPlusPipeline
+  - all
+  - __call__
+
+## QwenImageLayeredPipeline
+
+[[autodoc]] QwenImageLayeredPipeline
   - all
   - __call__
 
