@@ -38,6 +38,8 @@ from ..normalization import AdaLayerNormContinuous, RMSNorm
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
+print("[diffusers] Qwen-Image: real-valued (cos/sin) RoPE path enabled")
+
 
 def get_timestep_embedding(
     timesteps: torch.Tensor,

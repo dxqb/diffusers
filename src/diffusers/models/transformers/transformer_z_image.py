@@ -33,6 +33,8 @@ ADALN_EMBED_DIM = 256
 SEQ_MULTI_OF = 32
 X_PAD_DIM = 64
 
+print("[diffusers] Z-Image: real-valued (cos/sin) RoPE path enabled")
+
 
 class TimestepEmbedder(nn.Module):
     def __init__(self, out_size, mid_size=None, frequency_embedding_size=256):
