@@ -122,9 +122,12 @@ class ZSingleStreamAttnProcessor:
                 # torch.compile / inductor cannot trace view_as_complex + complex multiply and falls
                 # back to eager. repeat_interleave(2) matches view_as_complex's adjacent-pair layout,
                 # so the result is numerically identical.
-                # freqs_cis: [B, S, D//2] complex, x_in: [B, S, H, D]
-                cos = freqs_cis.real.repeat_interleave(2, dim=-1).unsqueeze(2)  # [B, S, 1, D]
-                sin = freqs_cis.imag.repeat_interleave(2, dim=-1).unsqueeze(2)
+                # freqs_cis: [B, S, D//2] real angles (precompute_freqs_cis keeps angles), x_in: [B, S, H, D]
+                # Note: padded positions carry angle 0 -> identity rotation here, whereas the old complex
+                # path padded with 0+0j -> zeroed output. Those positions are masked out by attn_mask, so
+                # attention output is unchanged.
+                cos = torch.cos(freqs_cis).repeat_interleave(2, dim=-1).unsqueeze(2)  # [B, S, 1, D]
+                sin = torch.sin(freqs_cis).repeat_interleave(2, dim=-1).unsqueeze(2)
                 x_real, x_imag = x_in.float().reshape(*x_in.shape[:-1], -1, 2).unbind(-1)  # [B, S, H, D//2]
                 x_rotated = torch.stack([-x_imag, x_real], dim=-1).flatten(3)
                 x_out = x_in.float() * cos + x_rotated * sin
@@ -344,8 +347,11 @@ class RopeEmbedder:
                 freqs = 1.0 / (theta ** (torch.arange(0, d, 2, dtype=torch.float64, device="cpu") / d))
                 timestep = torch.arange(e, device=freqs.device, dtype=torch.float64)
                 freqs = torch.outer(timestep, freqs).float()
-                freqs_cis_i = torch.polar(torch.ones_like(freqs), freqs).to(torch.complex64)  # complex64
-                freqs_cis.append(freqs_cis_i)
+                # Keep real-valued angles instead of complex e^{i*freqs}; cos/sin are taken in
+                # apply_rotary_emb so no complex dtype enters the compiled graph (inductor cannot
+                # codegen complex operators). Equivalent: torch.polar(ones, freqs) just encodes `freqs`.
+                # freqs_cis_i = torch.polar(torch.ones_like(freqs), freqs).to(torch.complex64)  # complex64
+                freqs_cis.append(freqs)
 
             return freqs_cis
 

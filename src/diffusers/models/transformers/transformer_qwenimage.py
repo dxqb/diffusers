@@ -144,9 +144,9 @@ def apply_rotary_emb_qwen(
         # torch.compile / inductor cannot trace view_as_complex + complex multiply and falls back
         # to eager (the "performance may be worse" warning). The math is identical because
         # view_as_complex pairs adjacent elements, so repeat_interleave(2) matches that layout.
-        # freqs_cis: [S, D//2] complex, x: [B, S, H, D]
-        cos = freqs_cis.real.repeat_interleave(2, dim=-1)[None, :, None, :].to(x.device)  # [1, S, 1, D]
-        sin = freqs_cis.imag.repeat_interleave(2, dim=-1)[None, :, None, :].to(x.device)
+        # freqs_cis: [S, D//2] real angles (rope_params keeps angles, not complex e^{i*angle}), x: [B, S, H, D]
+        cos = torch.cos(freqs_cis).repeat_interleave(2, dim=-1)[None, :, None, :].to(x.device)  # [1, S, 1, D]
+        sin = torch.sin(freqs_cis).repeat_interleave(2, dim=-1)[None, :, None, :].to(x.device)
         x_real, x_imag = x.float().reshape(*x.shape[:-1], -1, 2).unbind(-1)  # [B, S, H, D//2]
         x_rotated = torch.stack([-x_imag, x_real], dim=-1).flatten(3)
         return (x.float() * cos + x_rotated * sin).type_as(x)
@@ -241,7 +241,10 @@ class QwenEmbedRope(nn.Module):
         """
         assert dim % 2 == 0
         freqs = torch.outer(index, 1.0 / torch.pow(theta, torch.arange(0, dim, 2).to(torch.float32).div(dim)))
-        freqs = torch.polar(torch.ones_like(freqs), freqs)
+        # Keep real-valued angles instead of complex e^{i*freqs}; cos/sin are taken in
+        # apply_rotary_emb_qwen so no complex dtype ever enters the compiled graph (inductor cannot
+        # codegen complex operators). Equivalent: torch.polar(ones, freqs) just encodes angle `freqs`.
+        # freqs = torch.polar(torch.ones_like(freqs), freqs)
         return freqs
 
     @lru_cache_unless_export(maxsize=None)
@@ -382,7 +385,10 @@ class QwenEmbedLayer3DRope(nn.Module):
         """
         assert dim % 2 == 0
         freqs = torch.outer(index, 1.0 / torch.pow(theta, torch.arange(0, dim, 2).to(torch.float32).div(dim)))
-        freqs = torch.polar(torch.ones_like(freqs), freqs)
+        # Keep real-valued angles instead of complex e^{i*freqs}; cos/sin are taken in
+        # apply_rotary_emb_qwen so no complex dtype ever enters the compiled graph (inductor cannot
+        # codegen complex operators). Equivalent: torch.polar(ones, freqs) just encodes angle `freqs`.
+        # freqs = torch.polar(torch.ones_like(freqs), freqs)
         return freqs
 
     @lru_cache_unless_export(maxsize=None)
