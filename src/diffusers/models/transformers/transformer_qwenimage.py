@@ -134,11 +134,20 @@ def apply_rotary_emb_qwen(
 
         return out
     else:
-        x_rotated = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
-        freqs_cis = freqs_cis.unsqueeze(1)
-        x_out = torch.view_as_real(x_rotated * freqs_cis).flatten(3)
-
-        return x_out.type_as(x)
+        # Real-valued equivalent of the complex rotation below (kept commented for reference):
+        #   x_rotated = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
+        #   freqs_cis = freqs_cis.unsqueeze(1)
+        #   x_out = torch.view_as_real(x_rotated * freqs_cis).flatten(3)
+        #   return x_out.type_as(x)
+        # torch.compile / inductor cannot trace view_as_complex + complex multiply and falls back
+        # to eager (the "performance may be worse" warning). The math is identical because
+        # view_as_complex pairs adjacent elements, so repeat_interleave(2) matches that layout.
+        # freqs_cis: [S, D//2] complex, x: [B, S, H, D]
+        cos = freqs_cis.real.repeat_interleave(2, dim=-1)[None, :, None, :].to(x.device)  # [1, S, 1, D]
+        sin = freqs_cis.imag.repeat_interleave(2, dim=-1)[None, :, None, :].to(x.device)
+        x_real, x_imag = x.float().reshape(*x.shape[:-1], -1, 2).unbind(-1)  # [B, S, H, D//2]
+        x_rotated = torch.stack([-x_imag, x_real], dim=-1).flatten(3)
+        return (x.float() * cos + x_rotated * sin).type_as(x)
 
 
 def compute_text_seq_len_from_mask(

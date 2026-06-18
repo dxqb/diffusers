@@ -112,10 +112,21 @@ class ZSingleStreamAttnProcessor:
         # Apply RoPE
         def apply_rotary_emb(x_in: torch.Tensor, freqs_cis: torch.Tensor) -> torch.Tensor:
             with torch.amp.autocast("cuda", enabled=False):
-                x = torch.view_as_complex(x_in.float().reshape(*x_in.shape[:-1], -1, 2))
-                freqs_cis = freqs_cis.unsqueeze(2)
-                x_out = torch.view_as_real(x * freqs_cis).flatten(3)
-                return x_out.type_as(x_in)  # todo
+                # Real-valued equivalent of the complex rotation below (kept commented for reference):
+                #   x = torch.view_as_complex(x_in.float().reshape(*x_in.shape[:-1], -1, 2))
+                #   freqs_cis = freqs_cis.unsqueeze(2)
+                #   x_out = torch.view_as_real(x * freqs_cis).flatten(3)
+                #   return x_out.type_as(x_in)
+                # torch.compile / inductor cannot trace view_as_complex + complex multiply and falls
+                # back to eager. repeat_interleave(2) matches view_as_complex's adjacent-pair layout,
+                # so the result is numerically identical.
+                # freqs_cis: [B, S, D//2] complex, x_in: [B, S, H, D]
+                cos = freqs_cis.real.repeat_interleave(2, dim=-1).unsqueeze(2)  # [B, S, 1, D]
+                sin = freqs_cis.imag.repeat_interleave(2, dim=-1).unsqueeze(2)
+                x_real, x_imag = x_in.float().reshape(*x_in.shape[:-1], -1, 2).unbind(-1)  # [B, S, H, D//2]
+                x_rotated = torch.stack([-x_imag, x_real], dim=-1).flatten(3)
+                x_out = x_in.float() * cos + x_rotated * sin
+                return x_out.type_as(x_in)
 
         if freqs_cis is not None:
             query = apply_rotary_emb(query, freqs_cis)
